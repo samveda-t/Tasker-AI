@@ -56,8 +56,13 @@ ROUTING_PROVIDER=google
 1.3 Install and run
 ```
 ./setup.sh
+./run.sh --doctor
 ./run.sh --serve
 ```
+
+`./setup.sh` also creates `frontend/.env` automatically if it is missing. The doctor command treats placeholder values like `your_weatherapi_key` as missing, so you can verify setup before running live requests.
+
+For auth-enabled flows, set a real `AUTH_SECRET` before deploying. If you leave it unset, the app falls back to a development secret, which is not safe for production.
 
 2. Frontend
 2.1 Install deps
@@ -69,6 +74,8 @@ npm install
 ```
 cp .env.example .env
 ```
+
+For a separate frontend deployment such as Vercel, set `VITE_API_BASE_URL` to your backend origin instead of `http://127.0.0.1:8000`.
 2.3 Start dev server
 ```
 npm run dev
@@ -88,3 +95,7 @@ npm run dev
 - Smarter traffic and ETA trend detection
 - Multi-provider ride support
 - Notifications and proactive advisories
+
+**Deployment Notes**
+- Vercel frontend deployments should define `VITE_API_BASE_URL=https://your-backend-host`.
+- Render free web services use ephemeral local storage, so the default SQLite database will not persist across restarts or redeploys.

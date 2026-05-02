@@ -5,7 +5,10 @@ from pathlib import Path
 
 import requests
 
+from backend.config import has_configured_value
+
 NEWS_API_KEY = os.getenv("NEWS_API_KEY")
+NEWS_API_CONFIGURED = has_configured_value(NEWS_API_KEY)
 NEWS_API_BASE_URL = os.getenv(
     "NEWS_API_BASE_URL", "https://newsapi.org/v2/everything"
 )
@@ -67,7 +70,7 @@ def _normalize_articles(articles):
 
 
 def get_news(query, timeout=10, max_articles=5):
-    if not NEWS_API_KEY:
+    if not NEWS_API_CONFIGURED:
         raise ValueError("NEWS_API_KEY is not set")
     if not query:
         raise ValueError("query is required for news lookup")

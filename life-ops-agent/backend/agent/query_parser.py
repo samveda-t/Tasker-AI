@@ -5,11 +5,13 @@ from datetime import datetime, timedelta
 
 import requests
 
+from backend.config import has_configured_value
+
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
 OPENAI_PARSER_MODEL = os.getenv(
     "OPENAI_PARSER_MODEL",
-    os.getenv("OPENAI_DECISION_MODEL", "gpt-4o-2024-08-06"),
+    os.getenv("OPENAI_DECISION_MODEL", "gpt-5-mini"),
 )
 OPENAI_TIMEOUT_SEC = int(os.getenv("OPENAI_TIMEOUT_SEC", "15"))
 
@@ -252,7 +254,7 @@ def parse_query(query, timeout=None):
     if not query:
         raise ValueError("query is required")
 
-    if not OPENAI_API_KEY:
+    if not has_configured_value(OPENAI_API_KEY):
         return _post_process(_heuristic_parse(query), query)
 
     try:

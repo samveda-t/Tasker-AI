@@ -5,6 +5,36 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_DIR="${ROOT_DIR}/.venv"
 VENV_PYTHON="${VENV_DIR}/bin/python"
 
+is_placeholder_value() {
+  local raw="${1:-}"
+  local normalized
+  normalized="$(printf '%s' "${raw}" | tr '[:upper:]' '[:lower:]' | xargs)"
+
+  if [[ -z "${normalized}" ]]; then
+    return 0
+  fi
+
+  case "${normalized}" in
+    your_*|*example*|*changeme*|*change-me*|*replace_me*|*replace-me*|*test_key*|*dummy*|*placeholder*)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+print_key_status() {
+  local name="${1}"
+  local value="${2:-}"
+
+  if is_placeholder_value "${value}"; then
+    echo "${name}=MISSING"
+  else
+    echo "${name}=SET (len=${#value})"
+  fi
+}
+
 if [[ ! -x "${VENV_PYTHON}" ]]; then
   echo "Venv not found. Running setup..."
   "${ROOT_DIR}/setup.sh"
@@ -39,11 +69,7 @@ PY
     echo "ENV_EXISTS=false"
   fi
 
-  if [[ -n "${WEATHERAPI_KEY:-}" ]]; then
-    echo "WEATHERAPI_KEY=SET (len=${#WEATHERAPI_KEY})"
-  else
-    echo "WEATHERAPI_KEY=MISSING"
-  fi
+  print_key_status "WEATHERAPI_KEY" "${WEATHERAPI_KEY:-}"
 
   if [[ -n "${ROUTING_PROVIDER:-}" ]]; then
     echo "ROUTING_PROVIDER=${ROUTING_PROVIDER}"
@@ -67,26 +93,11 @@ PY
     echo "MAPS_CACHE_PATH=${MAPS_CACHE_PATH}"
   fi
 
-  if [[ -n "${ORS_API_KEY:-}" ]]; then
-    echo "ORS_API_KEY=SET (len=${#ORS_API_KEY})"
-  else
-    echo "ORS_API_KEY=MISSING"
-  fi
-  if [[ -n "${GOOGLE_MAPS_API_KEY:-}" ]]; then
-    echo "GOOGLE_MAPS_API_KEY=SET (len=${#GOOGLE_MAPS_API_KEY})"
-  else
-    echo "GOOGLE_MAPS_API_KEY=MISSING"
-  fi
-  if [[ -n "${NEWS_API_KEY:-}" ]]; then
-    echo "NEWS_API_KEY=SET (len=${#NEWS_API_KEY})"
-  else
-    echo "NEWS_API_KEY=MISSING"
-  fi
-  if [[ -n "${OPENAI_API_KEY:-}" ]]; then
-    echo "OPENAI_API_KEY=SET (len=${#OPENAI_API_KEY})"
-  else
-    echo "OPENAI_API_KEY=MISSING"
-  fi
+  print_key_status "ORS_API_KEY" "${ORS_API_KEY:-}"
+  print_key_status "GOOGLE_MAPS_API_KEY" "${GOOGLE_MAPS_API_KEY:-}"
+  print_key_status "NEWS_API_KEY" "${NEWS_API_KEY:-}"
+  print_key_status "OPENAI_API_KEY" "${OPENAI_API_KEY:-}"
+  print_key_status "AUTH_SECRET" "${AUTH_SECRET:-}"
   exit 0
 fi
 
@@ -101,19 +112,19 @@ if [[ $# -lt 2 ]]; then
   exit 2
 fi
 
-if [[ -z "${WEATHERAPI_KEY:-}" ]]; then
+if is_placeholder_value "${WEATHERAPI_KEY:-}"; then
   echo "Error: WEATHERAPI_KEY is not set"
   exit 3
 fi
 
 ROUTING_PROVIDER="${ROUTING_PROVIDER:-ors}"
 if [[ "${ROUTING_PROVIDER}" == "ors" ]]; then
-  if [[ -z "${ORS_API_KEY:-}" ]]; then
+  if is_placeholder_value "${ORS_API_KEY:-}"; then
     echo "Error: ORS_API_KEY is not set"
     exit 4
   fi
 elif [[ "${ROUTING_PROVIDER}" == "google" ]]; then
-  if [[ -z "${GOOGLE_MAPS_API_KEY:-}" ]]; then
+  if is_placeholder_value "${GOOGLE_MAPS_API_KEY:-}"; then
     echo "Error: GOOGLE_MAPS_API_KEY is not set"
     exit 5
   fi

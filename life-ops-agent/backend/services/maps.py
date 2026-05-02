@@ -4,7 +4,8 @@ import time
 from pathlib import Path
 import requests
 
-ROUTING_PROVIDER = os.getenv("ROUTING_PROVIDER", "ors").lower()
+from backend.config import has_configured_value
+
 API_KEY = os.getenv("ORS_API_KEY", "YOUR_ORS_API_KEY")
 BASE_URL = os.getenv("ORS_BASE_URL", "https://api.openrouteservice.org")
 GEOCODE_BASE_URL = os.getenv("ORS_GEOCODE_BASE_URL", BASE_URL)
@@ -20,12 +21,19 @@ OPEN_METEO_GEOCODE_BASE_URL = os.getenv(
     "OPEN_METEO_GEOCODE_BASE_URL", "https://geocoding-api.open-meteo.com/v1/search"
 )
 GOOGLE_TRAFFIC_MODEL = os.getenv("GOOGLE_TRAFFIC_MODEL")
-ROUTING_FALLBACK = os.getenv("ROUTING_FALLBACK", "osrm").lower()
 GEOCODE_CACHE_TTL_SEC = int(os.getenv("GEOCODE_CACHE_TTL_SEC", "604800"))
 ROUTE_CACHE_TTL_SEC = int(os.getenv("ROUTE_CACHE_TTL_SEC", "900"))
 MAPS_CACHE_PATH = os.getenv("MAPS_CACHE_PATH")
 NOMINATIM_URL = os.getenv("NOMINATIM_URL", "https://nominatim.openstreetmap.org/search")
 NOMINATIM_USER_AGENT = os.getenv("NOMINATIM_USER_AGENT", "life-ops-agent/1.0")
+
+
+def _get_routing_provider():
+    return os.getenv("ROUTING_PROVIDER", "ors").lower()
+
+
+def _get_routing_fallback():
+    return os.getenv("ROUTING_FALLBACK", "osrm").lower()
 
 def _format_duration(seconds):
     if seconds is None:
@@ -185,7 +193,7 @@ def _route_osrm(start_coords, end_coords, timeout=10):
     return result
 
 def _route_google(start_coords, end_coords, timeout=10):
-    if not GOOGLE_MAPS_API_KEY:
+    if not has_configured_value(GOOGLE_MAPS_API_KEY):
         raise ValueError("GOOGLE_MAPS_API_KEY is not set")
 
     cache_path = Path(MAPS_CACHE_PATH) if MAPS_CACHE_PATH else _default_cache_path()
@@ -263,7 +271,7 @@ def _geocode_nominatim(text, timeout=10):
     return [lon, lat]
 
 def _geocode_google(text, timeout=10):
-    if not GOOGLE_MAPS_API_KEY:
+    if not has_configured_value(GOOGLE_MAPS_API_KEY):
         raise ValueError("GOOGLE_MAPS_API_KEY is not set")
     params = {"address": text, "key": GOOGLE_MAPS_API_KEY}
     res = requests.get(GOOGLE_GEOCODE_BASE_URL, params=params, timeout=timeout)
@@ -321,8 +329,8 @@ def _geocode(text, timeout=10):
     if cached:
         return cached
 
-    if not API_KEY or API_KEY.startswith("YOUR_") or not GEOCODE_BASE_URL:
-        if GOOGLE_MAPS_API_KEY:
+    if not has_configured_value(API_KEY) or not GEOCODE_BASE_URL:
+        if has_configured_value(GOOGLE_MAPS_API_KEY):
             try:
                 coords = _geocode_google(text, timeout=timeout)
             except Exception:
@@ -344,7 +352,7 @@ def _geocode(text, timeout=10):
     res = requests.get(url, params=params, timeout=timeout)
 
     if res.status_code != 200:
-        if GOOGLE_MAPS_API_KEY:
+        if has_configured_value(GOOGLE_MAPS_API_KEY):
             try:
                 coords = _geocode_google(text, timeout=timeout)
             except Exception:
@@ -369,7 +377,7 @@ def _geocode(text, timeout=10):
 
     features = data.get("features") or []
     if not features:
-        if GOOGLE_MAPS_API_KEY:
+        if has_configured_value(GOOGLE_MAPS_API_KEY):
             try:
                 coords = _geocode_google(text, timeout=timeout)
             except Exception:
@@ -388,7 +396,7 @@ def _geocode(text, timeout=10):
 
     coords = (features[0].get("geometry") or {}).get("coordinates")
     if not coords or len(coords) != 2:
-        if GOOGLE_MAPS_API_KEY:
+        if has_configured_value(GOOGLE_MAPS_API_KEY):
             try:
                 coords = _geocode_google(text, timeout=timeout)
             except Exception:
@@ -422,6 +430,27 @@ def _request_directions(url, params, timeout):
         raise ValueError(f"Directions API error ({res.status_code}): {data}")
     return res, data
 
+
+def _extract_ors_summary(data):
+    routes = data.get("routes") or []
+    if routes:
+        summary = routes[0].get("summary") or {}
+        return summary.get("duration"), summary.get("distance")
+
+    features = data.get("features") or []
+    if features:
+        properties = features[0].get("properties") or {}
+        summary = properties.get("summary") or {}
+        if summary:
+            return summary.get("duration"), summary.get("distance")
+
+        segments = properties.get("segments") or []
+        if segments:
+            segment_summary = segments[0] or {}
+            return segment_summary.get("duration"), segment_summary.get("distance")
+
+    return None, None
+
 def get_eta(source, destination, timeout=10):
     if not source or not destination:
         raise ValueError("source and destination are required")
@@ -432,20 +461,22 @@ def get_eta(source, destination, timeout=10):
     except Exception as e:
         raise ValueError(f"Failed to get coordinates: {e}") from e
 
-    if ROUTING_PROVIDER == "google":
+    routing_provider = _get_routing_provider()
+
+    if routing_provider == "google":
         try:
             return _route_google(start_coords, end_coords, timeout=timeout)
         except Exception as e:
             raise ValueError(f"Google routing failed: {e}") from e
 
-    if ROUTING_PROVIDER == "osrm":
+    if routing_provider == "osrm":
         try:
             return _route_osrm(start_coords, end_coords, timeout=timeout)
         except Exception as e:
             raise ValueError(f"OSRM routing failed: {e}") from e
 
     # ORS routing
-    if not API_KEY or API_KEY.startswith("YOUR_"):
+    if not has_configured_value(API_KEY):
         raise ValueError("ORS_API_KEY is not set")
 
     cache_path = Path(MAPS_CACHE_PATH) if MAPS_CACHE_PATH else _default_cache_path()
@@ -478,7 +509,7 @@ def get_eta(source, destination, timeout=10):
                 raise ValueError(f"ORS routing failed: {e}") from e
         
         if res.status_code == 404:
-            if ROUTING_FALLBACK == "osrm":
+            if _get_routing_fallback() == "osrm":
                 try:
                     return _route_osrm(start_coords, end_coords, timeout=timeout)
                 except Exception as fallback_error:
@@ -494,13 +525,14 @@ def get_eta(source, destination, timeout=10):
                     "or https://staging.openrouteservice.org/ors"
                 )
 
-    routes = data.get("routes") or []
-    if not routes:
+    duration, distance = _extract_ors_summary(data)
+    if duration is None or distance is None:
+        if _get_routing_fallback() == "osrm":
+            try:
+                return _route_osrm(start_coords, end_coords, timeout=timeout)
+            except Exception as fallback_error:
+                raise ValueError("Directions API error: no routes found") from fallback_error
         raise ValueError("Directions API error: no routes found")
-
-    summary = routes[0].get("summary") or {}
-    duration = summary.get("duration")
-    distance = summary.get("distance")
 
     result = {
         "duration": _format_duration(duration),

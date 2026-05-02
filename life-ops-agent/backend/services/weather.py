@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 import requests
 
+from backend.config import has_configured_value
 from backend.services.maps import get_coords
 
 API_KEY = os.getenv("WEATHERAPI_KEY", "YOUR_WEATHERAPI_KEY")
@@ -55,7 +56,7 @@ def purge_weather_cache(city):
     return False
 
 def get_weather(city, timeout=10):
-    if not API_KEY or API_KEY.startswith("YOUR_"):
+    if not has_configured_value(API_KEY):
         raise ValueError("WEATHERAPI_KEY is not set")
     if not city:
         raise ValueError("city is required")
@@ -81,12 +82,26 @@ def get_weather(city, timeout=10):
     
     try:
         res = requests.get(url, params=params, timeout=timeout)
+        res.raise_for_status()
         data = res.json()
     except requests.exceptions.Timeout:
         raise ValueError(f"Weather API timeout after {timeout}s")
-    except Exception as e:
-        res.raise_for_status()
-        raise
+    except requests.exceptions.HTTPError as exc:
+        response = exc.response or locals().get("res")
+        status_code = getattr(response, "status_code", "unknown")
+        error_msg = str(exc)
+        if response is not None:
+            try:
+                payload = response.json()
+            except Exception:
+                payload = None
+            if isinstance(payload, dict):
+                error_msg = (payload.get("error") or {}).get("message") or error_msg
+        raise ValueError(f"Weather API error ({status_code}): {error_msg}") from exc
+    except requests.exceptions.RequestException as exc:
+        raise ValueError(f"Weather API request failed: {exc}") from exc
+    except ValueError as exc:
+        raise ValueError("Weather API returned invalid JSON") from exc
 
     if res.status_code != 200 or "error" in data:
         error_msg = (data.get("error") or {}).get("message") if isinstance(data, dict) else data

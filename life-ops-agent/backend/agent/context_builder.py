@@ -4,7 +4,7 @@ import logging
 from backend.services.weather import get_weather
 from backend.services.maps import get_eta
 from backend.services.aqi import get_aqi
-from backend.services.news import get_news, NEWS_API_KEY
+from backend.services.news import get_news, NEWS_API_CONFIGURED
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ def get_context(source, destination):
         eta_future = pool.submit(get_eta, source, destination)
         aqi_future = pool.submit(get_aqi, destination)
         news_future = None
-        if NEWS_API_KEY:
+        if NEWS_API_CONFIGURED:
             news_future = pool.submit(get_news, destination)
         
         # Handle exceptions gracefully

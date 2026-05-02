@@ -3,10 +3,12 @@ import os
 
 import requests
 
+from backend.config import has_configured_value
+
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-OPENAI_DECISION_MODEL = os.getenv("OPENAI_DECISION_MODEL", "gpt-5")
+OPENAI_DECISION_MODEL = os.getenv("OPENAI_DECISION_MODEL", "gpt-5.2")
 OPENAI_TIMEOUT_SEC = int(os.getenv("OPENAI_TIMEOUT_SEC", "15"))
 
 
@@ -20,7 +22,7 @@ def generate_decision(
     risk=None,
     timeout=None,
 ):
-    if not OPENAI_API_KEY:
+    if not has_configured_value(OPENAI_API_KEY):
         raise ValueError("OPENAI_API_KEY is not set")
     
     # Validate inputs

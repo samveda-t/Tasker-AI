@@ -118,17 +118,25 @@ export default function ResultCard({
         </div>
       </div>
       <div className="mt-6">
-        <a
-          href={actionLink}
-          target={actionLink !== "#" ? "_blank" : "_self"}
-          rel={actionLink !== "#" ? "noreferrer" : undefined}
-          className={`inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold shadow-sm transition ${
-            buttonColor
-          }`}
-          aria-disabled={isDisabled}
-        >
-          {actionLabel}
-        </a>
+        {isDisabled ? (
+          <span
+            className="inline-flex cursor-not-allowed items-center justify-center rounded-xl bg-slate-200 px-5 py-3 text-sm font-semibold text-slate-500 shadow-sm"
+            aria-disabled="true"
+          >
+            {actionLabel}
+          </span>
+        ) : (
+          <a
+            href={actionLink}
+            target={actionLink !== "#" ? "_blank" : "_self"}
+            rel={actionLink !== "#" ? "noreferrer" : undefined}
+            className={`inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold shadow-sm transition ${
+              buttonColor
+            }`}
+          >
+            {actionLabel}
+          </a>
+        )}
       </div>
 
       {showRisk ? (

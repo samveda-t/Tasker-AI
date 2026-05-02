@@ -8,7 +8,7 @@ from backend.agent.action_planner import plan_action
 from backend.services.weather import get_weather
 from backend.services.maps import get_eta
 from backend.services.aqi import get_aqi
-from backend.services.news import get_news, NEWS_API_KEY
+from backend.services.news import get_news, NEWS_API_CONFIGURED
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ def get_decision_from_query(query, debug=False):
             futures["eta"] = pool.submit(get_eta, source, destination)
         if needs.get("aqi") and destination:
             futures["aqi"] = pool.submit(get_aqi, destination)
-        if needs.get("news") and topic and NEWS_API_KEY:
+        if needs.get("news") and topic and NEWS_API_CONFIGURED:
             futures["news"] = pool.submit(get_news, topic)
 
         for key, future in futures.items():
