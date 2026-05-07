@@ -36,6 +36,36 @@ def _parse_distance_km(distance_text):
 from backend.services.llm import generate_decision
 
 
+def _build_decision(action, reasons, confidence, duration_min, distance_km, aqi_value, aqi_category, breakdown):
+    return {
+        "action": action,
+        "reason": "; ".join(reasons) if reasons else "Clear conditions and short trip",
+        "confidence": confidence,
+        "debug": {
+            "duration_minutes": duration_min,
+            "distance_km": distance_km,
+            "aqi": aqi_value,
+            "aqi_category": aqi_category,
+            "score_breakdown": breakdown,
+            "total_score": round(sum(breakdown.values()), 2),
+        },
+    }
+
+
+def _is_intercity_trip(distance_km, duration_min):
+    return (
+        (distance_km is not None and distance_km >= 80)
+        or (duration_min is not None and duration_min >= 120)
+    )
+
+
+def _is_implausible_local_transport(action, distance_km, duration_min):
+    if not action or not _is_intercity_trip(distance_km, duration_min):
+        return False
+    lowered = action.lower()
+    return any(term in lowered for term in ["cab", "uber", "walk", "bike"])
+
+
 def _rule_based_decision(
     weather,
     distance_km,
@@ -70,30 +100,38 @@ def _rule_based_decision(
         breakdown["aqi_poor"] = 0.6
         reasons.append("Poor air quality")
 
-    # Handle very long distances (intercity travel)
-    if distance_km is not None and distance_km >= 300:
-        if distance_km >= 1000:
-            action = "Take a flight"
-            reasons.insert(0, f"Extremely long distance ({distance_km:.1f} km) - requires air travel")
-        elif distance_km >= 500:
-            action = "Take a train or flight"
-            reasons.insert(0, f"Very long distance ({distance_km:.1f} km) - requires train or flight")
-        else:
-            action = "Take a train"
-            reasons.insert(0, f"Long distance ({distance_km:.1f} km) - train recommended")
-        return {
-            "action": action,
-            "reason": "; ".join(reasons),
-            "confidence": 0.9,
-            "debug": {
-                "duration_minutes": duration_min,
-                "distance_km": distance_km,
-                "aqi": aqi_value,
-                "aqi_category": aqi_category,
-                "score_breakdown": breakdown,
-                "total_score": round(score, 2),
-            },
-        }
+    # Handle intercity and very long distance travel before local commute heuristics.
+    if distance_km is not None or duration_min is not None:
+        if (
+            (distance_km is not None and distance_km >= 800)
+            or (duration_min is not None and duration_min >= 360)
+        ):
+            reasons.insert(0, f"Extremely long trip ({distance_km:.1f} km)" if distance_km is not None else f"Extremely long trip ({duration_min} min)")
+            return _build_decision(
+                action="Take a flight",
+                reasons=reasons,
+                confidence=0.95,
+                duration_min=duration_min,
+                distance_km=distance_km,
+                aqi_value=aqi_value,
+                aqi_category=aqi_category,
+                breakdown=breakdown,
+            )
+        if _is_intercity_trip(distance_km, duration_min):
+            if distance_km is not None:
+                reasons.insert(0, f"Intercity distance ({distance_km:.1f} km)")
+            elif duration_min is not None:
+                reasons.insert(0, f"Intercity travel time ({duration_min} min)")
+            return _build_decision(
+                action="Take a bus or train",
+                reasons=reasons,
+                confidence=0.9,
+                duration_min=duration_min,
+                distance_km=distance_km,
+                aqi_value=aqi_value,
+                aqi_category=aqi_category,
+                breakdown=breakdown,
+            )
 
     # More nuanced distance scoring for shorter distances
     if distance_km is not None:
@@ -149,19 +187,16 @@ def _rule_based_decision(
     else:
         reason = "Clear conditions and short trip"
 
-    return {
-        "action": action,
-        "reason": reason,
-        "confidence": round(min(score, 1.0), 2),
-        "debug": {
-            "duration_minutes": duration_min,
-            "distance_km": distance_km,
-            "aqi": aqi_value,
-            "aqi_category": aqi_category,
-            "score_breakdown": breakdown,
-            "total_score": round(score, 2),
-        },
-    }
+    return _build_decision(
+        action=action,
+        reasons=[reason] if reason else [],
+        confidence=round(min(score, 1.0), 2),
+        duration_min=duration_min,
+        distance_km=distance_km,
+        aqi_value=aqi_value,
+        aqi_category=aqi_category,
+        breakdown=breakdown,
+    )
 
 
 def _clamp_confidence(value):
@@ -233,8 +268,15 @@ def make_decision(context, debug=False, user_query=None, news=None, risk=None):
             "reason": llm_result.get("reason"),
             "confidence": _clamp_confidence(llm_result.get("confidence")),
         }
-        llm_model = llm_result.get("model")
-        llm_used = True
+        if _is_implausible_local_transport(decision["action"], distance_km, duration_min):
+            decision = {
+                "action": fallback["action"],
+                "reason": fallback["reason"],
+                "confidence": fallback["confidence"],
+            }
+        else:
+            llm_model = llm_result.get("model")
+            llm_used = True
     except Exception:
         decision = {
             "action": fallback["action"],

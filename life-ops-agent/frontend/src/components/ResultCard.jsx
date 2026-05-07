@@ -24,11 +24,17 @@ export default function ResultCard({
   const getActionColor = (actionType) => {
     if (!actionType) return "bg-slate-200 text-slate-500";
     const actionLower = actionType.toLowerCase();
+    if (actionLower.includes("bus") && actionLower.includes("train")) {
+      return "bg-amber-700 text-white hover:bg-amber-800";
+    }
     if (actionLower.includes("flight")) {
       return "bg-purple-600 text-white hover:bg-purple-700";
     }
     if (actionLower.includes("train")) {
       return "bg-indigo-600 text-white hover:bg-indigo-700";
+    }
+    if (actionLower.includes("bus")) {
+      return "bg-amber-600 text-white hover:bg-amber-700";
     }
     if (actionLower.includes("cab") || actionLower.includes("ride")) {
       return "bg-slate-900 text-white hover:bg-slate-800";
@@ -45,11 +51,17 @@ export default function ResultCard({
   const getActionLink = (actionType, linkValue, destinationValue) => {
     if (!actionType) return "#";
     const actionLower = actionType.toLowerCase();
+    if (actionLower.includes("bus") && actionLower.includes("train")) {
+      return "https://www.google.com/travel/";
+    }
     if (actionLower.includes("flight")) {
       return "https://www.google.com/flights";
     }
     if (actionLower.includes("train")) {
       return "https://www.irctc.co.in";
+    }
+    if (actionLower.includes("bus")) {
+      return "https://www.redbus.in/";
     }
     if (actionLower.includes("cab") || actionLower.includes("ride")) {
       return linkValue || "#";
@@ -66,11 +78,17 @@ export default function ResultCard({
   const getActionLabel = (actionType) => {
     if (!actionType) return "No Action";
     const actionLower = actionType.toLowerCase();
+    if (actionLower.includes("bus") && actionLower.includes("train")) {
+      return "Plan Intercity Trip";
+    }
     if (actionLower.includes("flight")) {
       return "Search Flights";
     }
     if (actionLower.includes("train")) {
       return "Book Train";
+    }
+    if (actionLower.includes("bus")) {
+      return "Find Buses";
     }
     if (actionLower.includes("cab") || actionLower.includes("ride")) {
       return "Book Uber";
@@ -87,7 +105,7 @@ export default function ResultCard({
   const buttonColor = getActionColor(safeAction);
   const actionLink = getActionLink(safeAction, link, destination);
   const actionLabel = getActionLabel(safeAction);
-  const isDisabled = !link && !safeAction.toLowerCase().includes("walk") && !safeAction.toLowerCase().includes("bike") && !safeAction.toLowerCase().includes("flight") && !safeAction.toLowerCase().includes("train");
+  const isDisabled = !link && !safeAction.toLowerCase().includes("walk") && !safeAction.toLowerCase().includes("bike") && !safeAction.toLowerCase().includes("flight") && !safeAction.toLowerCase().includes("train") && !safeAction.toLowerCase().includes("bus");
 
   const riskLevel = risk?.level ? risk.level.toUpperCase() : null;
   const showRisk = risk && (risk.relevant || risk?.level === "high" || risk?.level === "medium");

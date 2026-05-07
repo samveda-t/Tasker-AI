@@ -38,6 +38,9 @@ def generate_decision(
     system_prompt = (
         "You are a decision assistant. "
         "Given the user query and real-time context, recommend the best action. "
+        "For local trips, options like walking, biking, or a cab can make sense. "
+        "For intercity trips or travel that is roughly 80 km+ or 120 minutes+, do not recommend walking, biking, or a local cab. "
+        "Prefer bus, train, or flight for those longer trips. "
         "Return ONLY JSON with action, reason, confidence (0 to 1)."
     )
 
